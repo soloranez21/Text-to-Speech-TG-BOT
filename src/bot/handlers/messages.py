@@ -4,7 +4,7 @@ Message handlers for the Telegram bot.
 Handles text messages and file uploads (.md files).
 """
 
-import io
+import asyncio
 
 from aiogram import Router, F, Bot
 from aiogram.types import Message, BufferedInputFile
@@ -17,29 +17,16 @@ from src.services.text import validate_text, extract_from_markdown
 router = Router()
 
 
-async def process_tts(message: Message, text: str):
-    """Process text and send back audio."""
-    # Validate text
-    is_valid, result = validate_text(text)
-    if not is_valid:
-        await message.answer(f"❌ {result}")
-        return
-
-    # Send processing indicator
-    status_msg = await message.answer("🎙 Генерирую аудио...")
-
+async def _generate_and_send(message: Message, text: str, status_msg: Message):
+    """Background task: generate TTS and send audio."""
     try:
-        # Generate speech
-        audio_data = await generate_speech(result)
+        audio_data = await generate_speech(text)
 
         if not audio_data:
             await status_msg.edit_text("❌ Не удалось сгенерировать аудио. Попробуйте позже.")
             return
 
-        # Convert to MP3
         mp3_data = pcm_to_mp3(audio_data)
-
-        # Send audio file
         audio_file = BufferedInputFile(mp3_data, filename="speech.mp3")
         await message.answer_audio(audio_file)
         await status_msg.delete()
@@ -48,7 +35,23 @@ async def process_tts(message: Message, text: str):
         error_msg = "❌ Ошибка генерации. Попробуйте позже."
         if "429" in str(e):
             error_msg = "⏳ Сервис занят. Подождите немного и попробуйте снова."
-        await status_msg.edit_text(error_msg)
+        try:
+            await status_msg.edit_text(error_msg)
+        except:
+            pass
+
+
+async def process_tts(message: Message, text: str):
+    """Process text and send back audio (non-blocking)."""
+    is_valid, result = validate_text(text)
+    if not is_valid:
+        await message.answer(f"❌ {result}")
+        return
+
+    status_msg = await message.answer("🎙 Генерирую аудио... Это может занять некоторое время.")
+
+    # Run TTS in background to not block the bot
+    asyncio.create_task(_generate_and_send(message, result, status_msg))
 
 
 @router.message(F.text)
