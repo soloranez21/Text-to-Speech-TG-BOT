@@ -4,8 +4,7 @@ Gemini TTS integration using LangChain.
 Handles text-to-speech generation using Gemini 2.5 Flash TTS model.
 """
 
-from langchain_google_genai import ChatGoogleGenerativeAI
-from google.ai.generativelanguage_v1beta.types import GenerationConfig
+from langchain_google_genai import ChatGoogleGenerativeAI, Modality
 
 from src.config import settings
 
@@ -15,7 +14,7 @@ def create_tts_model():
     return ChatGoogleGenerativeAI(
         model="gemini-2.5-flash-preview-tts",
         google_api_key=settings.google_api_key,
-        response_modalities=[GenerationConfig.Modality.AUDIO],
+        response_modalities=[Modality.AUDIO],
     )
 
 
